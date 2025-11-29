@@ -7,9 +7,11 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
   curl \
   && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
-# Install global npm packages for React development
+# Install pnpm globally (version from package.json packageManager field)
+RUN npm install -g pnpm@10.11.0
+
+# Install global development tools
 RUN npm install -g \
-  create-react-app \
   serve \
   prettier \
   eslint
