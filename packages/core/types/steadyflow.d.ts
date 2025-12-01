@@ -5,6 +5,21 @@
  * Stores nodes and edges internally with automatic topological layering.
  */
 
+export type Node = {
+  id: string
+  data?: any
+  inputPorts?: string[]
+  outputPorts?: string[]
+}
+
+export type Edge = {
+  sourceId: string
+  targetId: string
+  data?: any
+  sourcePort?: string
+  targetPort?: string
+}
+
 /**
  * Directed graph with incremental layout.
  * 
@@ -21,11 +36,7 @@ export class Graph {
    * @param options.nodes - Initial nodes to add
    * @param options.edges - Initial edges to add
    */
-  constructor(options?: {
-    prior?: Graph
-    nodes?: Array<{ id: string; data?: any; ports?: any }>
-    edges?: Array<{ source: { id: string }; target: { id: string }; data?: any }>
-  })
+  constructor(options?: { prior?: Graph, nodes?: Node[], edges?: Edge[] })
 
   /**
    * Check if the graph is empty (no nodes or edges).
@@ -38,7 +49,7 @@ export class Graph {
    * @param node - Node to add with id and optional data
    * @returns New graph with node added
    */
-  addNode(node: { id: string; data?: any; ports?: any }): Graph
+  addNode(node: Node): Graph
 
   /**
    * Add multiple nodes to the graph.
@@ -46,7 +57,7 @@ export class Graph {
    * @param nodes - Nodes to add
    * @returns New graph with nodes added
    */
-  addNodes(...nodes: Array<{ id: string; data?: any; ports?: any }>): Graph
+  addNodes(...nodes: Node[]): Graph
 
   /**
    * Remove a node from the graph.
@@ -54,7 +65,7 @@ export class Graph {
    * @param node - Node to remove (or node id)
    * @returns New graph with node removed
    */
-  removeNode(node: { id: string } | string): Graph
+  removeNode(node: Node | string): Graph
 
   /**
    * Remove multiple nodes from the graph.
@@ -62,7 +73,7 @@ export class Graph {
    * @param nodes - Nodes to remove
    * @returns New graph with nodes removed
    */
-  removeNodes(...nodes: Array<{ id: string } | string>): Graph
+  removeNodes(...nodes: (Node | string)[]): Graph
 
   /**
    * Add an edge to the graph.
@@ -70,11 +81,7 @@ export class Graph {
    * @param edge - Edge to add with source and target nodes
    * @returns New graph with edge added
    */
-  addEdge(edge: {
-    source: { id: string }
-    target: { id: string }
-    data?: any
-  }): Graph
+  addEdge(edge: Edge): Graph
 
   /**
    * Add multiple edges to the graph.
@@ -82,13 +89,7 @@ export class Graph {
    * @param edges - Edges to add
    * @returns New graph with edges added
    */
-  addEdges(
-    ...edges: Array<{
-      source: { id: string }
-      target: { id: string }
-      data?: any
-    }>
-  ): Graph
+  addEdges(...edges: Edge[]): Graph
 
   /**
    * Remove an edge from the graph.
@@ -96,10 +97,7 @@ export class Graph {
    * @param edge - Edge to remove
    * @returns New graph with edge removed
    */
-  removeEdge(edge: {
-    source: { id: string }
-    target: { id: string }
-  }): Graph
+  removeEdge(edge: Edge): Graph
 
   /**
    * Remove multiple edges from the graph.
@@ -107,12 +105,7 @@ export class Graph {
    * @param edges - Edges to remove
    * @returns New graph with edges removed
    */
-  removeEdges(
-    ...edges: Array<{
-      source: { id: string }
-      target: { id: string }
-    }>
-  ): Graph
+  removeEdges(...edges: Edge[]): Graph
 
   /**
    * Batch multiple mutations efficiently.
@@ -121,6 +114,78 @@ export class Graph {
    * @returns New graph with all mutations applied
    */
   withMutations(callback: (mutator: Mutator) => void): Graph
+
+  /**
+   * Get the layer index of a node.
+   * 
+   * @param id - Node id
+   * @returns Layer index
+   */
+  nodeLayer(id: string): number
+
+  /**
+   * Get the successors of a node.
+   * 
+   * @param id - Node id
+   * @returns Array of successor node ids
+   */
+  *succNodes(id: string): Iterable<string>
+
+  /**
+   * Get the predecessors of a node.
+   * 
+   * @param id - Node id
+   * @returns Array of predecessor node ids
+   */
+  *predNodes(id: string): Iterable<string>
+
+  /**
+   * Get the successors of a node.
+   * 
+   * @param id - Node id
+   * @returns Array of successor edges
+   */
+  *succEdges(id: string): Iterable<Edge>
+
+  /**
+   * Get the predecessors of a node.
+   * 
+   * @param id - Node id
+   * @returns Array of predecessor edges
+   */
+  *predEdges(id: string): Iterable<Edge>
+
+  /**
+   * Get a node by id.
+   * 
+   * @param id - Node id
+   * @returns Node or undefined
+   */
+  getNode(id: string): Node | undefined
+
+  /**
+   * Get an edge by id.
+   * 
+   * @param id - Edge id
+   * @returns Edge or undefined
+   */
+  getEdge(id: string): Edge | undefined
+
+  /**
+   * Check if a node exists.
+   * 
+   * @param id - Node id
+   * @returns True if node exists, false otherwise
+   */
+  hasNode(id: string): boolean
+
+  /**
+   * Check if an edge exists.
+   * 
+   * @param id - Edge id
+   * @returns True if edge exists, false otherwise
+   */
+  hasEdge(id: string): boolean
 }
 
 /**
@@ -132,58 +197,40 @@ export class Mutator {
   /**
    * Add a node.
    */
-  addNode(node: { id: string; data?: any; ports?: any }): void
+  addNode(node: Node): void
 
   /**
    * Add multiple nodes.
    */
-  addNodes(...nodes: Array<{ id: string; data?: any; ports?: any }>): void
+  addNodes(...nodes: Node[]): void
 
   /**
    * Add an edge.
    */
-  addEdge(edge: {
-    source: { id: string }
-    target: { id: string }
-    data?: any
-  }): void
+  addEdge(edge: Edge): void
 
   /**
    * Add multiple edges.
    */
-  addEdges(
-    ...edges: Array<{
-      source: { id: string }
-      target: { id: string }
-      data?: any
-    }>
-  ): void
+  addEdges(...edges: Edge[]): void
 
   /**
    * Remove a node.
    */
-  removeNode(node: { id: string } | string): void
+  removeNode(node: Node | string): void
 
   /**
    * Remove multiple nodes.
    */
-  removeNodes(...nodes: Array<{ id: string } | string>): void
+  removeNodes(...nodes: (Node | string)[]): void
 
   /**
    * Remove an edge.
    */
-  removeEdge(edge: {
-    source: { id: string }
-    target: { id: string }
-  }): void
+  removeEdge(edge: Edge): void
 
   /**
    * Remove multiple edges.
    */
-  removeEdges(
-    ...edges: Array<{
-      source: { id: string }
-      target: { id: string }
-    }>
-  ): void
+  removeEdges(...edges: Edge[]): void
 }

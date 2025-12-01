@@ -106,14 +106,38 @@ describe('Graph', () => {
           { sourceId: 'n2', targetId: 'n4' },
         ],
       })
-      expect([...graph.pred('n1')]).toEqual([])
-      expect([...graph.pred('n2')]).toEqual([])
-      expect([...graph.pred('n3')]).toEqual(['n1', 'n2'])
-      expect([...graph.pred('n4')]).toEqual(['n2'])
-      expect([...graph.succ('n1')]).toEqual(['n3'])
-      expect([...graph.succ('n2')]).toEqual(['n3', 'n4'])
-      expect([...graph.succ('n3')]).toEqual([])
-      expect([...graph.succ('n4')]).toEqual([])
+      expect([...graph.predNodes('n1')]).toEqual([])
+      expect([...graph.predNodes('n2')]).toEqual([])
+      expect([...graph.predNodes('n3')]).toEqual(['n1', 'n2'])
+      expect([...graph.predNodes('n4')]).toEqual(['n2'])
+      expect([...graph.succNodes('n1')]).toEqual(['n3'])
+      expect([...graph.succNodes('n2')]).toEqual(['n3', 'n4'])
+      expect([...graph.succNodes('n3')]).toEqual([])
+      expect([...graph.succNodes('n4')]).toEqual([])
+    })
+
+    it('should allow multiple edges with different ports', () => {
+      const graph = new Graph({
+        nodes: [{ id: 'n1' }, { id: 'n2' }],
+        edges: [
+          { sourceId: 'n1', targetId: 'n2', sourcePort: 'o1', targetPort: 'i1' },
+          { sourceId: 'n1', targetId: 'n2', sourcePort: 'o2', targetPort: 'i2' },
+        ],
+      })
+      expect([...graph.predNodes('n1')]).toEqual([])
+      expect([...graph.predNodes('n2')]).toEqual(['n1'])
+      expect([...graph.succNodes('n1')]).toEqual(['n2'])
+      expect([...graph.succNodes('n2')]).toEqual([])
+      expect([...graph.predEdges('n1')]).toEqual([])
+      expect([...graph.predEdges('n2')]).toEqual([
+        { sourceId: 'n1', targetId: 'n2', sourcePort: 'o1', targetPort: 'i1' },
+        { sourceId: 'n1', targetId: 'n2', sourcePort: 'o2', targetPort: 'i2' },
+      ])
+      expect([...graph.succEdges('n1')]).toEqual([
+        { sourceId: 'n1', targetId: 'n2', sourcePort: 'o1', targetPort: 'i1' },
+        { sourceId: 'n1', targetId: 'n2', sourcePort: 'o2', targetPort: 'i2' },
+      ])
+      expect([...graph.succEdges('n2')]).toEqual([])
     })
   })
 
@@ -158,8 +182,8 @@ describe('Graph', () => {
       // Verify edges exist
       expect(g1.hasEdge('n1-n2')).toBe(true)
       expect(g1.hasEdge('n2-n3')).toBe(true)
-      expect([...g1.succ('n1')]).toEqual(['n2'])
-      expect([...g1.pred('n3')]).toEqual(['n2'])
+      expect([...g1.succNodes('n1')]).toEqual(['n2'])
+      expect([...g1.predNodes('n3')]).toEqual(['n2'])
 
       // Remove the middle node
       const g2 = g1.withMutations(m => {
@@ -169,8 +193,8 @@ describe('Graph', () => {
       // Both edges involving n2 should be gone
       expect(g2.hasEdge('n1-n2')).toBe(false)
       expect(g2.hasEdge('n2-n3')).toBe(false)
-      expect([...g2.succ('n1')]).toEqual([])
-      expect([...g2.pred('n3')]).toEqual([])
+      expect([...g2.succNodes('n1')]).toEqual([])
+      expect([...g2.predNodes('n3')]).toEqual([])
 
       // But n1 and n3 should still exist
       expect(g2.hasNode('n1')).toBe(true)

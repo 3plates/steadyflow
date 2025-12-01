@@ -1,20 +1,26 @@
 import { Map as IMap, List as IList, Set as ISet } from 'immutable'
 
-// TODO: Would be cool to put relevant pred/succ sets in batch
-// mutation mode during updates
-
 const defaultOptions = {}
 
 export class Graph {
   constructor({ prior, changes, options, nodes, edges } = {}) {
+    // nodeId -> node
     this.nodeMap = prior?.nodeMap || IMap()
+    // edgeId -> edge
     this.edgeMap = prior?.edgeMap || IMap()
+    // nodeId -> layerId
     this.layerMap = prior?.layerMap || IMap()
+    // layerId -> layer
     this.layers = prior?.layers || IMap()
+    // index -> layerId
     this.layerList = prior?.layerList || IList()
+    // nodeId -> { edgeId }
     this.predMap = prior?.predMap || IMap()
+    // nodeId -> { edgeId }
     this.succMap = prior?.succMap || IMap()
+    // nodeId -> { pos, dims }
     this.nodeLayout = prior?.nodeLayout || IMap()
+
     this.nextLayerId = prior?.nextLayerId || 0
     this.dirtyNodes = new Set()
     this.prior = prior
@@ -23,14 +29,17 @@ export class Graph {
       ...(prior?.options || {}),
       ...(options || {}),
     }
+
     this.changes = changes || {
       addedNodes: [],
       removedNodes: [],
       addedEdges: [],
       removedEdges: [],
     }
+
     this.changes.addedNodes.push(...(nodes || []))
     this.changes.addedEdges.push(...(edges || []))
+
     this.dirty =
       this.changes.addedNodes.length > 0 ||
       this.changes.removedNodes.length > 0 ||
@@ -91,12 +100,28 @@ export class Graph {
     return this.edgeMap?.has(id) || false
   }
 
-  pred(id) {
+  _pred(id) {
     return this.predMap.get(id) || ISet()
   }
 
-  succ(id) {
+  _succ(id) {
     return this.succMap.get(id) || ISet()
+  }
+
+  predNodes(id) {
+    return this._pred(id).map(id => this.getEdge(id).sourceId).toSet()
+  }
+
+  succNodes(id) {
+    return this._succ(id).map(id => this.getEdge(id).targetId).toSet()
+  }
+
+  predEdges(id) {
+    return this._pred(id).map(id => this.getEdge(id))
+  }
+
+  succEdges(id) {
+    return this._succ(id).map(id => this.getEdge(id))
   }
 
   withMutations(callback) {
@@ -207,10 +232,10 @@ export class Graph {
     for (const node of this.changes.removedNodes) {
       layer = this.layers.get(this.layerMap.get(node.id))
       layer = { ...layer, nodes: layer.nodes.remove(node.id) }
-      for (const pred of this.predMap.get(node.id).values())
-        this.changes.removedEdges.push({ sourceId: pred, targetId: node.id })
-      for (const succ of this.succMap.get(node.id).values())
-        this.changes.removedEdges.push({ sourceId: node.id, targetId: succ })
+      for (const edge of this.predEdges(node.id))
+        this.changes.removedEdges.push(edge)
+      for (const edge of this.succEdges(node.id))
+        this.changes.removedEdges.push(edge)
       this.layers.set(layer.id, layer)
       this.nodeMap.delete(node.id)
       this.predMap.delete(node.id)
@@ -218,20 +243,22 @@ export class Graph {
       this.layerMap.delete(node.id)
     }
     for (const edge of this.changes.addedEdges) {
-      this.edgeMap.set(this.edgeId(edge), edge)
+      const id = this.edgeId(edge)
+      this.edgeMap.set(id, edge)
       const predSet = this.predMap.get(edge.targetId)
-      this.predMap.set(edge.targetId, predSet.add(edge.sourceId))
+      this.predMap.set(edge.targetId, predSet.add(id))
       const succSet = this.succMap.get(edge.sourceId)
-      this.succMap.set(edge.sourceId, succSet.add(edge.targetId))
+      this.succMap.set(edge.sourceId, succSet.add(id))
     }
     for (const edge of this.changes.removedEdges) {
-      this.edgeMap.delete(this.edgeId(edge))
+      const id = this.edgeId(edge)
+      this.edgeMap.delete(id)
       const predSet = this.predMap.get(edge.targetId)
-      if (predSet?.has(edge.sourceId))
-        this.predMap.set(edge.targetId, predSet.remove(edge.sourceId))
+      if (predSet?.has(id))
+        this.predMap.set(edge.targetId, predSet.remove(id))
       const succSet = this.succMap.get(edge.sourceId)
-      if (succSet?.has(edge.targetId))
-        this.succMap.set(edge.sourceId, succSet.remove(edge.targetId))
+      if (succSet?.has(id))
+        this.succMap.set(edge.sourceId, succSet.remove(id))
     }
   }
 
@@ -273,7 +300,7 @@ export class Graph {
 
     const visit = (id) => {
       colorMap.set(id, gray)
-      for (const next of this.succ(id)) {
+      for (const next of this.succNodes(id)) {
         switch (colorMap.get(next) ?? white) {
           case gray:
             start = next
@@ -335,7 +362,7 @@ export class Graph {
     const phase2 = new Set(stack)
     while (stack.length > 0) {
       const id = stack.pop()
-      const parents = this.pred(id)
+      const parents = this.predNodes(id)
       let correctLayer
       if (parents.size == 0) {
         // this only happens for new nodes or removed edges; move to top
@@ -350,7 +377,7 @@ export class Graph {
       // also add parents to phase 2
       if (curLayer != correctLayer) {
         this._moveNodeLayer(id, correctLayer)
-        stack.push(...this.succ(id))
+        stack.push(...this.succNodes(id))
         for (const parent of parents)
           phase2.add(parent)
       }
@@ -376,7 +403,7 @@ export class Graph {
       const curLayer = this.layers.get(layerId).index
       // visit each parent of this layer
       for (const id of byLayer.get(layerId).values()) {
-        const children = this.succ(id)
+        const children = this.succNodes(id)
         if (children.size == 0) continue
         // should be just above min child
         const minChild = children.map(id => this.layerOf(id)).min()
@@ -384,7 +411,7 @@ export class Graph {
         // if needs a move, move it and push parents to stack
         if (curLayer != correctLayer) {
           this._moveNodeLayer(id, correctLayer)
-          for (const parent of this.predMap.get(id))
+          for (const parent of this.predNodes(id))
             addParent(parent)
         }
       }
@@ -448,7 +475,7 @@ export class Graph {
         return route
       }
 
-      for (const child of this.succ(id)) {
+      for (const child of this.succNodes(id)) {
         if (!visited.has(child)) {
           visited.add(child)
           parentMap.set(child, id)
@@ -489,7 +516,10 @@ export class Mutator {
   }
 
   removeNode(node) {
-    this.changes.removedNodes.push(node)
+    if (typeof (node) == 'string')
+      this.changes.removedNodes.push({ id: node })
+    else
+      this.changes.removedNodes.push(node)
   }
 
   removeNodes(...nodes) {
